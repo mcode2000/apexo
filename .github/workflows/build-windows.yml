@@ -1,0 +1,38 @@
+name: Build Apexo for Windows
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Install Shorebird
+        run: |
+          curl -o shorebird.exe https://raw.githubusercontent.com/shorebirdtech/shorebird/main/bin/shorebird.exe
+          move shorebird.exe C:\Windows\System32\shorebird.exe
+
+      - name: Build with Shorebird
+        run: shorebird release windows -- --release
+
+      - name: Package with MSIX script (without Store flag)
+        run: |
+          powershell -ExecutionPolicy Bypass -File tools/patch_msix_manifest.ps1 -SkipFlutterBuild
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apexo-windows-build
+          path: |
+            build\windows\x64\runner\Release\
+            build\windows\x64\runner\Release\apexo.msix
