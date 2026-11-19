@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1. Download source code
+      # 1. Checkout source code
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -29,15 +29,18 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      # 4. Get dependencies
+      # 4. Verify Flutter
+      - name: Verify Flutter
+        run: flutter --version
+
+      # 5. Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # 5. Install Shorebird
+      # 6. Install Shorebird
       - name: Install Shorebird
         shell: pwsh
         run: |
@@ -46,19 +49,20 @@ jobs:
             -OutFile "shorebird.exe"
 
           Move-Item shorebird.exe "$env:RUNNER_TEMP\shorebird.exe" -Force
+
           Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP"
 
-      # 6. Build with Shorebird
+      # 7. Build with Shorebird
       - name: Build with Shorebird
         run: shorebird release windows -- --release
 
-      # 7. Package MSIX
+      # 8. Package MSIX
       - name: Package with MSIX script
         shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File tools/patch_msix_manifest.ps1 -SkipFlutterBuild
 
-      # 8. Upload Artifact
+      # 9. Upload Artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
