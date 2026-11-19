@@ -1,4 +1,5 @@
 name: Build Apexo for Windows
+
 on: [workflow_dispatch]
 
 permissions:
@@ -7,29 +8,24 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    steps:
-      - name: Pre-seed Git Auth
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $base64 = [Convert]::ToBase64String(
-            [Text.Encoding]::ASCII.GetBytes("x-access-token:$env:GH_TOKEN")
-          )
-          git config --global --replace-all `
-            http.https://github.com/.extraheader `
-            "AUTHORIZATION: basic $base64"
 
+    steps:
+      # 1. Download source code
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
 
+      # 2. Verify Git
       - name: Verify Git Authentication
         shell: pwsh
         run: |
           git ls-remote origin HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git authentication verification failed"
+          }
 
+      # 3. Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -37,25 +33,37 @@ jobs:
           channel: 'stable'
           cache: true
 
+      # 4. Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
+      # 5. Install Shorebird
       - name: Install Shorebird
+        shell: pwsh
         run: |
-          curl -o shorebird.exe https://raw.githubusercontent.com/shorebirdtech/shorebird/main/bin/shorebird.exe
-          move shorebird.exe C:\Windows\System32\shorebird.exe
+          Invoke-WebRequest `
+            -Uri "https://raw.githubusercontent.com/shorebirdtech/shorebird/main/bin/shorebird.exe" `
+            -OutFile "shorebird.exe"
 
+          Move-Item shorebird.exe "$env:RUNNER_TEMP\shorebird.exe" -Force
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP"
+
+      # 6. Build with Shorebird
       - name: Build with Shorebird
         run: shorebird release windows -- --release
 
-      - name: Package with MSIX script (without Store flag)
+      # 7. Package MSIX
+      - name: Package with MSIX script
+        shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File tools/patch_msix_manifest.ps1 -SkipFlutterBuild
 
+      # 8. Upload Artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: apexo-windows-build
           path: |
-            build\windows\x64\runner\Release\
-            build\windows\x64\runner\Release\apexo.msix
+            build/windows/x64/runner/Release/
+            build/windows/x64/runner/Release/apexo.msix
+          if-no-files-found: error
