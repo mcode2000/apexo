@@ -27,6 +27,11 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Create local Sentry configuration
+        shell: pwsh
+        run: |
+          Set-Content -Path lib/sentry_dsn.dart -Value "const String sentryDSN = '';" -Encoding utf8
+
       - name: Build Windows Release
         run: flutter build windows --release
 
