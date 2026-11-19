@@ -1,13 +1,34 @@
 name: Build Apexo for Windows
 on: [workflow_dispatch]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Pre-seed Git Auth
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $base64 = [Convert]::ToBase64String(
+            [Text.Encoding]::ASCII.GetBytes("x-access-token:$env:GH_TOKEN")
+          )
+          git config --global --replace-all `
+            http.https://github.com/.extraheader `
+            "AUTHORIZATION: basic $base64"
+
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Verify Git Authentication
+        shell: pwsh
+        run: |
+          git ls-remote origin HEAD
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
