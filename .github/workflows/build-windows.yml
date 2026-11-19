@@ -1,6 +1,8 @@
+
 name: Build Apexo for Windows
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,64 +12,40 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1. Checkout source code
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
-      # 2. Verify Git
-      - name: Verify Git Authentication
-        shell: pwsh
-        run: |
-          git ls-remote origin HEAD
-          if ($LASTEXITCODE -ne 0) {
-            throw "Git authentication verification failed"
-          }
-
-      # 3. Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      # 4. Verify Flutter
       - name: Verify Flutter
         run: flutter --version
 
-      # 5. Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # 6. Install Shorebird
-      - name: Install Shorebird
-        shell: pwsh
-        run: |
-          Invoke-WebRequest `
-            -Uri "https://raw.githubusercontent.com/shorebirdtech/shorebird/main/bin/shorebird.exe" `
-            -OutFile "shorebird.exe"
+      - name: Build Windows Release
+        run: flutter build windows --release
 
-          Move-Item shorebird.exe "$env:RUNNER_TEMP\shorebird.exe" -Force
-
-          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP"
-
-      # 7. Build with Shorebird
-      - name: Build with Shorebird
-        run: shorebird release windows -- --release
-
-      # 8. Package MSIX
-      - name: Package with MSIX script
-        shell: pwsh
-        run: |
-          powershell -ExecutionPolicy Bypass -File tools/patch_msix_manifest.ps1 -SkipFlutterBuild
-
-      # 9. Upload Artifact
-      - name: Upload Artifact
+      - name: Upload Windows EXE
         uses: actions/upload-artifact@v4
         with:
-          name: apexo-windows-build
-          path: |
-            build/windows/x64/runner/Release/
-            build/windows/x64/runner/Release/apexo.msix
+          name: apexo-windows-exe
+          path: build/windows/x64/runner/Release/
           if-no-files-found: error
+
+      - name: Package MSIX
+        shell: pwsh
+        run: |
+          ./tools/patch_msix_manifest.ps1 -SkipFlutterBuild
+
+      - name: Upload MSIX
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apexo-windows-msix
+          path: build/windows/x64/runner/Release/apexo.msix
+          if-no-files-found: warn
